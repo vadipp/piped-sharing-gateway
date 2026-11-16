@@ -110,10 +110,10 @@ async function load() {
                 if (index === selected) return;
                 const time = video.currentTime;
                 const playing = !video.paused;
-                const rate = video.playbackRate;
+                const rate = player.getPlaybackRate();
                 await player.load(combined[index].url, time, combined[index].mimeType);
-                video.playbackRate = rate;
                 await addSubtitles();
+                player.trickPlay(rate, false);
                 selected = index;
                 if (playing) await video.play();
             });

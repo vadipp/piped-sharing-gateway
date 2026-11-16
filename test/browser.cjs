@@ -102,23 +102,27 @@ function format(name, width, height) {
                     if (!await page.locator('.shaka-overflow-menu').isVisible()) await page.locator('.shaka-overflow-menu-button').click();
                 };
                 assert.equal(await page.locator('video').evaluate(v=>v.videoWidth),320);
-                await page.locator('video').evaluate(v=>{v.currentTime=3;v.playbackRate=1.5;});
+                await page.locator('video').evaluate(v=>{v.currentTime=3;});
+                await openSettings();
+                await page.locator('.shaka-playbackrate-button').click();
+                await page.locator('.shaka-playback-rates button').filter({hasText:/^1\.5x$/}).click();
+                await page.waitForFunction(()=>document.querySelector('video').playbackRate===1.5);
                 await openSettings();
                 await page.locator('.shared-quality-button').click();
                 await page.locator('.shared-quality-option').filter({hasText:'360p'}).click();
                 await page.waitForFunction(()=>{const v=document.querySelector('video');return v.videoWidth===640&&v.currentTime>=3&&!v.paused;},{},{timeout:30000});
-                assert.equal(await page.locator('video').evaluate(v=>v.playbackRate),1.5);
+                await page.waitForFunction(()=>document.querySelector('video').playbackRate===1.5);
                 await page.locator('video').evaluate(v=>v.pause());
                 await openSettings();
                 await page.locator('.shared-quality-button').click();
                 await page.locator('.shared-quality-option').filter({hasText:'180p'}).click();
                 await page.waitForFunction(()=>document.querySelector('video').videoWidth===320);
                 assert.equal(await page.locator('video').evaluate(v=>v.paused),true);
-                assert.equal(await page.locator('video').evaluate(v=>v.playbackRate),1.5);
+                await page.waitForFunction(()=>document.querySelector('video').playbackRate===1.5);
                 await openSettings();
                 await page.locator('.shaka-playbackrate-button').click();
                 await page.locator('.shaka-playback-rates button').filter({hasText:/^2x$/}).click();
-                assert.equal(await page.locator('video').evaluate(v=>v.playbackRate),2);
+                await page.waitForFunction(()=>document.querySelector('video').playbackRate===2);
             }
         }
         const revoked=await fetch('http://127.0.0.1:18781/shares/'+share.id,{method:'DELETE',headers:{Authorization:'Bearer fixture-management-secret-32-characters',Origin:'https://piped.example.com'}});
