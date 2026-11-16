@@ -1,0 +1,32 @@
+services:
+  gateway:
+    image: piped-sharing-gateway:REVISION
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 96m
+    memswap_limit: 96m
+    cpus: 0.5
+    pids_limit: 32
+    environment:
+      PUBLIC_ORIGIN: https://share.example.com
+      ADMIN_ORIGIN: https://piped.example.com
+      BACKEND_ORIGIN: http://piped:8080
+      MEDIA_ORIGIN: https://media.example.com
+      MEDIA_UPSTREAM: http://nginx-piped:80
+      ADMIN_SECRET_FILE: /run/secrets/admin-secret
+    volumes:
+      - ./data:/data
+      - ./admin-secret:/run/secrets/admin-secret:ro
+    networks: [piped]
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: '2'
+networks:
+  piped:
+    external: true
+    name: piped_default

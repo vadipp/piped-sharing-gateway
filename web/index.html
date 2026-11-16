@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>Shared video</title>
+<link rel="stylesheet" href="/assets/vendor/controls.css">
+<link rel="stylesheet" href="/assets/player.css">
+<script defer src="/assets/vendor/shaka-player.ui.js"></script>
+<script defer src="/assets/player.js"></script>
+</head>
+<body>
+<main>
+<div id="container"><video id="video" playsinline></video></div>
+<div class="details"><h1 id="title">Shared video</h1><p id="author"></p>
+<p id="status" role="status">Loading video…</p>
+<div id="fallback" hidden><label>Quality <select id="quality"></select></label>
+<label>Speed <select id="speed"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select>×</label></div>
+<button id="retry" hidden>Retry playback</button></div>
+</main>
+</body>
+</html>
