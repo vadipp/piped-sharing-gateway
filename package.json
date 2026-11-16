@@ -2,6 +2,13 @@
   "name": "piped-sharing-gateway-assets",
   "private": true,
   "version": "0.1.0",
-  "scripts": {"vendor": "node scripts/vendor.cjs"},
-  "dependencies": {"shaka-player": "5.1.0"}
+  "scripts": {
+    "vendor": "node scripts/vendor.cjs"
+  },
+  "dependencies": {
+    "shaka-player": "5.1.0"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
 }
