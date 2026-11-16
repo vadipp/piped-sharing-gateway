@@ -58,9 +58,12 @@ function format(name, width, height) {
         browser=await chromium.launch({headless:true});
         const context=await browser.newContext();
         const page=await context.newPage();
+        page.on('console',async msg=>{if(msg.type()==='error'||msg.type()==='warning'){const args=await Promise.all(msg.args().map(a=>a.jsonValue().catch(()=>null)));console.log('::warning::'+JSON.stringify(args));}});
+        page.on('requestfailed',req=>console.log('::warning::Request failed: '+req.failure()?.errorText));
         const errors=[];page.on('pageerror',e=>errors.push(e.message));
         await page.goto(share.url+'?t=1');
-        await page.waitForFunction(()=>document.querySelector('video').readyState>=2,{},{timeout:30000});
+        try {await page.waitForFunction(()=>document.querySelector('video').readyState>=2,{},{timeout:30000});}
+        catch(e) {console.log('::error::Player state: '+JSON.stringify(await page.evaluate(()=>({status:document.getElementById('status').textContent,mediaError:document.querySelector('video').error?.message,ready:document.querySelector('video').readyState}))));throw e;}
         assert.equal(await page.locator('h1').textContent(),'Shared fixture');
         assert.equal(await page.locator('a').count(),0);
         assert.equal(await page.locator('input[type=search]').count(),0);
