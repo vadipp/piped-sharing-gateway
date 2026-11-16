@@ -13,11 +13,10 @@
 </head>
 <body>
 <main>
-<div id="container"><video id="video" playsinline></video></div>
+<div id="container"><video id="video" playsinline></video>
+<label id="native-quality" hidden>Quality <select id="quality" aria-label="Quality"></select></label></div>
 <div class="details"><h1 id="title">Shared video</h1><p id="author"></p>
 <p id="status" role="status">Loading video…</p>
-<div id="fallback" hidden><label>Quality <select id="quality"></select></label>
-<label>Speed <select id="speed"><option>0.5</option><option>0.75</option><option selected>1</option><option>1.25</option><option>1.5</option><option>2</option></select>×</label></div>
 <button id="retry" hidden>Retry playback</button></div>
 </main>
 </body>

@@ -31,7 +31,9 @@ nor signatures are disclosed to the browser.
 HLS manifests are rewritten recursively, including URI attributes for keys and
 alternate renditions. Foreign origins and redirects fail closed. For ordinary
 VOD, the player generates DASH from the backend's adaptive formats, or offers
-native playback of combined formats. Upstream DASH-only/OTF manifests without
+combined-file playback with quality and speed controls inside the player settings.
+Browsers without Shaka support retain native playback with an in-player quality
+selector and their native speed controls. Upstream DASH-only/OTF manifests without
 usable formats are currently unsupported. Formats, quality and availability are
 limited by the existing Piped extractor. Non-proxied subtitles are omitted.
 

@@ -11,6 +11,7 @@ for (const [name,size] of [['low','320x180'],['high','640x360']]) {
 }
 execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi','-i','sine=frequency=440:sample_rate=44100','-t','8','-vn','-c:a','aac','-movflags','+dash+global_sidx+frag_keyframe',`${dir}/audio.mp4`]);
 execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',`${dir}/low.mp4`,'-i',`${dir}/audio.mp4`,'-map','0:v','-map','1:a','-c','copy',`${dir}/combined.mp4`]);
+execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',`${dir}/high.mp4`,'-i',`${dir}/audio.mp4`,'-map','0:v','-map','1:a','-c','copy',`${dir}/combined-high.mp4`]);
 execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',`${dir}/combined.mp4`,'-c','copy','-hls_time','2','-hls_list_size','0','-hls_segment_filename',`${dir}/segment%03d.ts`,`${dir}/playlist.m3u8`]);
 const origin = 'http://127.0.0.1:18780';
 function format(name, width, height) {
@@ -33,14 +34,14 @@ function format(name, width, height) {
         if(req.url==='/streams/lmnopqrstuv' || req.url==='/streams/hlsfixture1') {
             const hls=req.url.endsWith('hlsfixture1');
             res.setHeader('Content-Type','application/json');
-            res.end(JSON.stringify({title:hls?'HLS fixture':'Combined fixture',duration:8,hls:hls?'https://media.example.com/playlist.m3u8':null,videoStreams:hls?[]:[{url:'https://media.example.com/combined.mp4',mimeType:'video/mp4',quality:'180p',videoOnly:false}],audioStreams:[],subtitles:[]}));return;
+            res.end(JSON.stringify({title:hls?'HLS fixture':'Combined fixture',duration:8,hls:hls?'https://media.example.com/playlist.m3u8':null,videoStreams:hls?[]:[{url:'https://media.example.com/combined.mp4',mimeType:'video/mp4',quality:'180p',videoOnly:false},{url:'https://media.example.com/combined-high.mp4',mimeType:'video/mp4',quality:'360p',videoOnly:false}],audioStreams:[],subtitles:[]}));return;
         }
         if(req.url==='/streams/abcdefghijk') {
             res.setHeader('Content-Type','application/json');
             res.end(JSON.stringify({title:'Shared fixture',uploader:'Fixture author',duration:8,videoStreams:[format('low',320,180),format('high',640,360)],audioStreams:[format('audio')],subtitles:[],relatedStreams:[{url:'/watch?v=other-video'}]}));return;
         }
         const name=req.url.slice(1);
-        if(!['low.mp4','high.mp4','audio.mp4','combined.mp4','playlist.m3u8'].includes(name)&&!/^segment\d{3}\.ts$/.test(name)){res.writeHead(404).end();return;}
+        if(!['low.mp4','high.mp4','audio.mp4','combined.mp4','combined-high.mp4','playlist.m3u8'].includes(name)&&!/^segment\d{3}\.ts$/.test(name)){res.writeHead(404).end();return;}
         const data=fs.readFileSync(`${dir}/${name}`),range=req.headers.range;
         res.setHeader('Content-Type',name.endsWith('.m3u8')?'application/vnd.apple.mpegurl':name.endsWith('.ts')?'video/mp2t':name==='audio.mp4'?'audio/mp4':'video/mp4');
         res.setHeader('Accept-Ranges','bytes');
@@ -92,6 +93,33 @@ function format(name, width, height) {
             await page.waitForFunction(()=>document.querySelector('video').currentTime>1);
             assert.equal(await page.locator('a').count(),0);
             assert.equal(await page.locator('#status').textContent(),'');
+            assert.equal(await page.locator('.details select').count(),0);
+            assert.equal(await page.locator('#speed').count(),0);
+            assert.equal(await page.locator('video').evaluate(v=>v.controls),false);
+            if (videoId === 'lmnopqrstuv') {
+                const openSettings = async () => {
+                    await page.locator('video').hover();
+                    if (!await page.locator('.shaka-overflow-menu').isVisible()) await page.locator('.shaka-overflow-menu-button').click();
+                };
+                assert.equal(await page.locator('video').evaluate(v=>v.videoWidth),320);
+                await page.locator('video').evaluate(v=>{v.currentTime=3;v.playbackRate=1.5;});
+                await openSettings();
+                await page.locator('.shared-quality-button').click();
+                await page.locator('.shared-quality-option').filter({hasText:'360p'}).click();
+                await page.waitForFunction(()=>{const v=document.querySelector('video');return v.videoWidth===640&&v.currentTime>=3&&!v.paused;},{},{timeout:30000});
+                assert.equal(await page.locator('video').evaluate(v=>v.playbackRate),1.5);
+                await page.locator('video').evaluate(v=>v.pause());
+                await openSettings();
+                await page.locator('.shared-quality-button').click();
+                await page.locator('.shared-quality-option').filter({hasText:'180p'}).click();
+                await page.waitForFunction(()=>document.querySelector('video').videoWidth===320);
+                assert.equal(await page.locator('video').evaluate(v=>v.paused),true);
+                assert.equal(await page.locator('video').evaluate(v=>v.playbackRate),1.5);
+                await openSettings();
+                await page.locator('.shaka-playbackrate-button').click();
+                await page.locator('.shaka-playback-rates button').filter({hasText:/^2x$/}).click();
+                assert.equal(await page.locator('video').evaluate(v=>v.playbackRate),2);
+            }
         }
         const revoked=await fetch('http://127.0.0.1:18781/shares/'+share.id,{method:'DELETE',headers:{Authorization:'Bearer fixture-management-secret-32-characters',Origin:'https://piped.example.com'}});
         assert.equal(revoked.status,204);
