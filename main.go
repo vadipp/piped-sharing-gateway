@@ -80,8 +80,14 @@ func (g *Gateway) public(w http.ResponseWriter, r *http.Request) {
 		w.Write(body)
 		return
 	}
-	if len(parts) == 3 && parts[2] == "video" && (r.URL.RawQuery == "" || r.URL.RawQuery=="refresh=1") {
-		if r.URL.RawQuery=="refresh=1" {g.mu.Lock(); if cv:=g.cache[share.ID];cv!=nil && time.Now().After(cv.until.Add(-4*time.Minute-30*time.Second)){cv.until=time.Time{}};g.mu.Unlock()}
+	if len(parts) == 3 && parts[2] == "video" && (r.URL.RawQuery == "" || r.URL.RawQuery == "refresh=1") {
+		if r.URL.RawQuery == "refresh=1" {
+			g.mu.Lock()
+			if cv := g.cache[share.ID]; cv != nil && time.Now().After(cv.until.Add(-4*time.Minute-30*time.Second)) {
+				cv.until = time.Time{}
+			}
+			g.mu.Unlock()
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 50*time.Second)
 		defer cancel()
 		v, e := g.metadata(ctx, share, token)

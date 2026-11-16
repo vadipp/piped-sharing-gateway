@@ -53,10 +53,10 @@ type resource struct {
 	Manifest bool
 }
 type cachedVideo struct {
-	video     Video
-	resources map[string]resource
-	until     time.Time
-	touched   time.Time
+	video         Video
+	resources     map[string]resource
+	until         time.Time
+	touched       time.Time
 	resourceBytes int
 }
 type Gateway struct {
@@ -68,7 +68,7 @@ type Gateway struct {
 	// Serializes cache misses to bound backend extraction and memory use.
 	extraction chan struct{}
 	streams    chan struct{}
-	manifests chan struct{}
+	manifests  chan struct{}
 }
 
 func newGateway(c Config, s *Store) *Gateway {
@@ -85,12 +85,14 @@ func (g *Gateway) register(cv *cachedVideo, token, raw string, manifest bool) (s
 	if !g.allowed(raw) {
 		return "", errors.New("backend returned an unsupported resource origin")
 	}
-	if len(raw)>16384 || len(cv.resources) >= 1024 || cv.resourceBytes+len(raw)>256<<10 {
+	if len(raw) > 16384 || len(cv.resources) >= 1024 || cv.resourceBytes+len(raw) > 256<<10 {
 		return "", errors.New("resource limit reached")
 	}
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%t:%s", manifest, raw)))
 	id := hex.EncodeToString(sum[:])
-	if _,exists:=cv.resources[id];!exists {cv.resourceBytes+=len(raw)}
+	if _, exists := cv.resources[id]; !exists {
+		cv.resourceBytes += len(raw)
+	}
 	cv.resources[id] = resource{raw, manifest}
 	return "/s/" + token + "/r/" + id, nil
 }
@@ -125,7 +127,9 @@ func (g *Gateway) metadata(ctx context.Context, share Share, token string) (Vide
 	if err = json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(&v); err != nil {
 		return v, err
 	}
-	if len(v.Title)>4096 || len(v.Author)>4096 || len(v.Videos)+len(v.Audios)>512 || len(v.Subtitles)>100 {return Video{},errors.New("metadata exceeds limits")}
+	if len(v.Title) > 4096 || len(v.Author) > 4096 || len(v.Videos)+len(v.Audios) > 512 || len(v.Subtitles) > 100 {
+		return Video{}, errors.New("metadata exceeds limits")
+	}
 	now := time.Now()
 	next := &cachedVideo{resources: map[string]resource{}, until: now.Add(5 * time.Minute), touched: now}
 	// Only explicitly selected fields are decoded. Recommendations, account data,
@@ -145,7 +149,9 @@ func (g *Gateway) metadata(ctx context.Context, share Share, token string) (Vide
 	filter := func(formats []Format) []Format {
 		out := []Format{}
 		for _, f := range formats {
-			if len(f.Codec)>256 || len(f.Quality)>256 {continue}
+			if len(f.Codec) > 256 || len(f.Quality) > 256 {
+				continue
+			}
 			f.URL = rewrite(f.URL, false)
 			if f.URL != "" {
 				out = append(out, f)
@@ -157,7 +163,9 @@ func (g *Gateway) metadata(ctx context.Context, share Share, token string) (Vide
 	v.Audios = filter(v.Audios)
 	subs := []Subtitle{}
 	for _, s := range v.Subtitles {
-		if len(s.Code)>64 || len(s.Name)>256 || len(s.MIME)>128 {continue}
+		if len(s.Code) > 64 || len(s.Name) > 256 || len(s.MIME) > 128 {
+			continue
+		}
 		s.URL = rewrite(s.URL, false)
 		if s.URL != "" {
 			subs = append(subs, s)
@@ -173,9 +181,9 @@ func (g *Gateway) metadata(ctx context.Context, share Share, token string) (Vide
 	// Retain already-issued URLs during a refresh so in-flight playback can finish.
 	if old := g.cache[share.ID]; old != nil {
 		for id, r := range old.resources {
-			if _,exists:=next.resources[id]; !exists && len(next.resources)<1024 && next.resourceBytes+len(r.URL)<=256<<10 {
+			if _, exists := next.resources[id]; !exists && len(next.resources) < 1024 && next.resourceBytes+len(r.URL) <= 256<<10 {
 				next.resources[id] = r
-				next.resourceBytes+=len(r.URL)
+				next.resourceBytes += len(r.URL)
 			}
 		}
 	}
@@ -299,7 +307,13 @@ func (g *Gateway) media(w http.ResponseWriter, r *http.Request, share Share, tok
 		return
 	}
 	if target.Manifest && r.Method != "HEAD" && res.StatusCode == 200 {
-		select {case g.manifests<-struct{}{}: defer func(){<-g.manifests}();default:http.Error(w,"Too many concurrent manifests",429);return}
+		select {
+		case g.manifests <- struct{}{}:
+			defer func() { <-g.manifests }()
+		default:
+			http.Error(w, "Too many concurrent manifests", 429)
+			return
+		}
 		body, e := io.ReadAll(io.LimitReader(res.Body, (2<<20)+1))
 		if e != nil || len(body) > 2<<20 || !strings.HasPrefix(strings.TrimSpace(string(body)), "#EXTM3U") {
 			http.Error(w, "Unsupported manifest", 502)

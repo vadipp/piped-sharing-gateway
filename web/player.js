@@ -31,7 +31,7 @@ async function load() {
     retry.hidden = true;
     status.textContent = "Loading video…";
     try {
-        const res = await fetch(location.pathname + "/video", {credentials:"omit", cache:"no-store"});
+        const res = await fetch(location.pathname + "/video?refresh=1", {credentials:"omit", cache:"no-store"});
         if (!res.ok) throw new Error("This shared video is unavailable or its link has been revoked.");
         const data = await res.json();
         document.title = data.title || "Shared video";
@@ -68,6 +68,13 @@ async function load() {
             const change = time => { video.src=combined[Number(select.value)].url;video.addEventListener("loadedmetadata",()=>{video.currentTime=time;},{once:true}); };
             select.onchange=()=>{const time=video.currentTime;const playing=!video.paused;change(time);if(playing)video.play().catch(()=>{});};
             document.getElementById("speed").onchange=e=>{video.playbackRate=Number(e.target.value);};
+            video.querySelectorAll("track").forEach(track => track.remove());
+            for (const sub of data.subtitles || []) {
+                if (sub.mimeType !== "text/vtt") continue;
+                const track = document.createElement("track");
+                track.kind = "subtitles"; track.src = sub.url; track.srclang = sub.code || "und"; track.label = sub.name || sub.code;
+                video.append(track);
+            }
             change(start);
         }
         status.textContent="";
