@@ -1,0 +1,13 @@
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY cmd/certsync/ cmd/certsync/
+RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /certsync ./cmd/certsync
+
+FROM alpine:3.23
+RUN apk add --no-cache ca-certificates openssh-client
+ARG REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/vadipp/piped-sharing-gateway" \
+      org.opencontainers.image.revision=$REVISION
+COPY --from=build /certsync /certsync
+ENTRYPOINT ["/certsync"]
