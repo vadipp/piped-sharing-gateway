@@ -98,7 +98,7 @@ function format(name, width, height) {
             assert.equal(await page.locator('video').evaluate(v=>v.controls),false);
             if (videoId === 'lmnopqrstuv') {
                 const openSettings = async () => {
-                    await page.locator('video').hover();
+                    await page.locator('#container').hover();
                     if (!await page.locator('.shaka-overflow-menu').isVisible()) await page.locator('.shaka-overflow-menu-button').click();
                 };
                 assert.equal(await page.locator('video').evaluate(v=>v.videoWidth),320);
