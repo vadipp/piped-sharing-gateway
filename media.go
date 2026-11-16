@@ -51,6 +51,7 @@ type Video struct {
 type resource struct {
 	URL      string
 	Manifest bool
+	Seen     time.Time
 }
 type cachedVideo struct {
 	video         Video
@@ -93,7 +94,7 @@ func (g *Gateway) register(cv *cachedVideo, token, raw string, manifest bool) (s
 	if _, exists := cv.resources[id]; !exists {
 		cv.resourceBytes += len(raw)
 	}
-	cv.resources[id] = resource{raw, manifest}
+	cv.resources[id] = resource{URL: raw, Manifest: manifest, Seen: time.Now()}
 	return "/s/" + token + "/r/" + id, nil
 }
 func (g *Gateway) metadata(ctx context.Context, share Share, token string) (Video, error) {
@@ -181,13 +182,13 @@ func (g *Gateway) metadata(ctx context.Context, share Share, token string) (Vide
 	// Retain already-issued URLs during a refresh so in-flight playback can finish.
 	if old := g.cache[share.ID]; old != nil {
 		for id, r := range old.resources {
-			if _, exists := next.resources[id]; !exists && len(next.resources) < 1024 && next.resourceBytes+len(r.URL) <= 256<<10 {
+			if _, exists := next.resources[id]; !exists && time.Since(r.Seen) < 5*time.Minute && len(next.resources) < 1024 && next.resourceBytes+len(r.URL) <= 256<<10 {
 				next.resources[id] = r
 				next.resourceBytes += len(r.URL)
 			}
 		}
 	}
-	if len(g.cache) >= 64 {
+	if _, exists := g.cache[share.ID]; !exists && len(g.cache) >= 64 {
 		oldest := ""
 		var t time.Time
 		for id, c := range g.cache {
@@ -210,6 +211,14 @@ func (g *Gateway) rewriteHLS(body []byte, base *url.URL, shareID, token string) 
 	cv := g.cache[shareID]
 	if cv == nil {
 		return nil, errors.New("reload player")
+	}
+	// Live playlists keep introducing segments. Retire resources no longer
+	// requested or advertised so a long stream cannot fill its capability budget.
+	for id, r := range cv.resources {
+		if time.Since(r.Seen) > 5*time.Minute {
+			delete(cv.resources, id)
+			cv.resourceBytes -= len(r.URL)
+		}
 	}
 	replace := func(s string) (string, error) {
 		u, e := url.Parse(s)
@@ -263,6 +272,10 @@ func (g *Gateway) media(w http.ResponseWriter, r *http.Request, share Share, tok
 	if cv != nil {
 		target, ok = cv.resources[id]
 		cv.touched = time.Now()
+		if ok {
+			target.Seen = time.Now()
+			cv.resources[id] = target
+		}
 	}
 	g.mu.Unlock()
 	if !ok {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testGateway(t *testing.T) (*Gateway, *httptest.Server) {
@@ -173,5 +174,35 @@ func TestPersistentNonExpiringToken(t *testing.T) {
 	defer s.db.Close()
 	if share, e := s.lookup(token); e != nil || share.VideoID != "abcdefghijk" {
 		t.Fatal("old token lost across restart")
+	}
+}
+
+func TestLivePlaylistRetiresUnusedResources(t *testing.T) {
+	g, _ := testGateway(t)
+	token, _ := g.store.create("abcdefghijk")
+	share, _ := g.store.lookup(token)
+	if _, err := g.metadata(context.Background(), share, token); err != nil {
+		t.Fatal(err)
+	}
+	g.mu.Lock()
+	cv := g.cache[share.ID]
+	oldPath, err := g.register(cv, token, "https://media.example.com/old-segment.ts", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := oldPath[strings.LastIndex(oldPath, "/")+1:]
+	old := cv.resources[id]
+	old.Seen = time.Now().Add(-6 * time.Minute)
+	cv.resources[id] = old
+	g.mu.Unlock()
+	base, _ := url.Parse("https://media.example.com/live.m3u8")
+	if _, err = g.rewriteHLS([]byte("#EXTM3U\nnew-segment.ts\n"), base, share.ID, token); err != nil {
+		t.Fatal(err)
+	}
+	g.mu.Lock()
+	_, exists := cv.resources[id]
+	g.mu.Unlock()
+	if exists {
+		t.Fatal("obsolete live segment retained")
 	}
 }
