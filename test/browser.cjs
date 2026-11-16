@@ -77,4 +77,4 @@ function format(name, width, height) {
         assert.equal((await fetch(share.url)).status,404);
         console.log('Browser adaptive playback, controls, seek, isolation and revocation passed.');
     } finally {if(browser)await browser.close();gateway.kill('SIGTERM');upstream.close();}
-})().catch(e=>{console.error(e);process.exitCode=1;});
+})().catch(e=>{console.error("::error::"+String(e.stack || e).replaceAll("\n","%0A"));process.exitCode=1;});
