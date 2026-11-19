@@ -41,17 +41,8 @@ jobs:
           build-args: REVISION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Build certificate sync image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.certsync
-          load: true
-          tags: piped-certsync:${{ github.sha }}
-          build-args: REVISION=${{ github.sha }}
       - name: Restricted container smoke test
         run: |
-          docker run --rm --memory=64m --memory-swap=64m --cpus=0.5 --pids-limit=32 --read-only --network=none --cap-drop=ALL --security-opt=no-new-privileges piped-certsync:${GITHUB_SHA} --help
           mkdir smoke-data
           chmod 777 smoke-data
           docker run -d --name gateway-smoke --memory=96m --memory-swap=96m --cpus=0.5 --pids-limit=32 --read-only --cap-drop=ALL --security-opt=no-new-privileges --network=none -v "$PWD/smoke-data:/data" -e PUBLIC_ORIGIN=https://share.example.com -e ADMIN_ORIGIN=https://piped.example.com -e BACKEND_ORIGIN=http://backend:8080 -e MEDIA_ORIGIN=https://media.example.com -e MEDIA_UPSTREAM=http://proxy:80 -e ADMIN_SECRET=example-smoke-secret-at-least-32-characters piped-sharing-gateway:${GITHUB_SHA}
@@ -65,9 +56,6 @@ jobs:
           sha256sum image.tar.gz > image.tar.gz.sha256
           docker inspect --format '{{.Id}}' piped-sharing-gateway:${GITHUB_SHA} > image-id.txt
           printf '%s\n' "$GITHUB_SHA" > revision.txt
-          docker save piped-certsync:${GITHUB_SHA} | gzip -1 > certsync-image.tar.gz
-          sha256sum certsync-image.tar.gz > certsync-image.tar.gz.sha256
-          docker inspect --format '{{.Id}}' piped-certsync:${GITHUB_SHA} > certsync-image-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: gateway-image
@@ -76,10 +64,7 @@ jobs:
             image.tar.gz.sha256
             image-id.txt
             revision.txt
-            certsync-image.tar.gz
-            certsync-image.tar.gz.sha256
-            certsync-image-id.txt
       - name: Publish image bundle
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "image-${GITHUB_SHA}" image.tar.gz image.tar.gz.sha256 image-id.txt revision.txt certsync-image.tar.gz certsync-image.tar.gz.sha256 certsync-image-id.txt --title "Image ${GITHUB_SHA:0:12}" --notes "Linux amd64 image built from the tagged source revision. Runtime configuration is supplied by the operator."
+        run: gh release create "image-${GITHUB_SHA}" image.tar.gz image.tar.gz.sha256 image-id.txt revision.txt --title "Image ${GITHUB_SHA:0:12}" --notes "Linux amd64 image built from the tagged source revision. Runtime configuration is supplied by the operator."

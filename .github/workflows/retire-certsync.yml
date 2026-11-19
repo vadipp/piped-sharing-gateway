@@ -1,0 +1,43 @@
+name: Retire certificate utility artifacts
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/retire-certsync.yml]
+permissions:
+  contents: write
+  actions: write
+jobs:
+  retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify unchanged utility as a standalone module
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/certsync"
+          for file in main.go main_test.go; do
+            git show 2e99c07d658b420f6a7083aed5a64cc4e98d48b1:cmd/certsync/$file > "$RUNNER_TEMP/certsync/$file"
+          done
+          printf 'module private.local/certsync\n\ngo 1.24.0\n' > "$RUNNER_TEMP/certsync/go.mod"
+          docker run --rm --memory=384m --memory-swap=384m --cpus=1 --pids-limit=64 --network=none --cap-drop=ALL --security-opt=no-new-privileges -e GOMAXPROCS=1 -e GOMEMLIMIT=128MiB -e GOCACHE=/tmp/go-cache -v "$RUNNER_TEMP/certsync:/src:ro" -w /src golang:1.27-alpine timeout 240 sh -ec 'cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.swap.max /sys/fs/cgroup/cpu.max /sys/fs/cgroup/pids.max; go test -p 1 -vet=off ./...; go vet -p 1 ./...; cat /sys/fs/cgroup/memory.events'
+      - name: Remove retired release assets and matching CI artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for sha in ebb0d7a0973cff5257a1b6caa12ec2f772a890cd 2e99c07d658b420f6a7083aed5a64cc4e98d48b1; do
+            for asset in certsync-image.tar.gz certsync-image.tar.gz.sha256 certsync-image-id.txt; do
+              if gh release view "image-$sha" --json assets --jq '.assets[].name' | grep -Fxq "$asset"; then
+                gh release delete-asset "image-$sha" "$asset" --yes
+              fi
+            done
+            gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
+              --jq ".artifacts[] | select(.workflow_run.head_sha == \"$sha\") | .id" > "$RUNNER_TEMP/retired-artifact-ids"
+            while read -r id; do
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+            done < "$RUNNER_TEMP/retired-artifact-ids"
+          done
